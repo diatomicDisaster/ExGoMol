@@ -65,7 +65,8 @@ class Linelist:
         "vibrational": int,
         "parity_total": str,
         "parity_rotationless": str,
-        "electronic_state_no": str
+        "electronic_state": str,
+        "state_number": int
     }
     # Linelist data frame has one of each of these columns, with data specific
     # to transitions between the two states
@@ -80,15 +81,42 @@ class Linelist:
     def __init__(self):
         self.dataframe = None
 
+    def sort_data(self, **kwargs):
+        self.dataframe = self.dataframe.sort_values(**kwargs)
+
+    def filter_data(self, column, filter_, value):
+        if type(column) is str:
+            if column[-2:] not in ["_f", "_i"]:
+                self.filter_data(column+"_f", filter_, value)
+                self.filter_data(column+"_i", filter_, value)
+                return
+            if filter_ == "=":
+                self.dataframe = self.dataframe.loc[self.dataframe[column] == value]
+            elif filter_ == ">":
+                self.dataframe = self.dataframe.loc[self.dataframe[column] > value]
+            elif filter_ == ">=":
+                self.dataframe = self.dataframe.loc[self.dataframe[column] >= value]
+            elif filter_ == "<":
+                self.dataframe = self.dataframe.loc[self.dataframe[column] < value]
+            elif filter_ == "<=":
+                self.dataframe = self.dataframe.loc[self.dataframe[column] <= value]
+            elif filter_ == "!=":
+                self.dataframe = self.dataframe.loc[self.dataframe[column] != value]
+            return
+        else:
+            for i in range(len(column)):
+                self.filter_data(column[i], filter_[i], value[i])
+            return
+
+    def reset_data(self):
+        self.dataframe = self.dataframe_persistent
+
     def exomol_to_linelist(self, states_file=None, trans_file=None):
         """Convert ExoMol states and trans file to Linelist."""
-        exomol_states_types = {
-            "stateID": int, #exomol states files have additional 'stateID' column
-            **self.data_types
-        }
+        exomol_states_types = self.data_types
         exomol_trans_types  = {
-            "stateID_final": int,   #exomol trans files have two 'stateID' columns
-            'stateID_initial': int,
+            "state_number_final": int,   #exomol trans files have two 'stateID' columns
+            'state_number_initial': int,
             **self.data_types
         }
         # Read '.states' and '.trans' files as space delimited
@@ -96,27 +124,31 @@ class Linelist:
         trans_df  = _read_space_delimited(trans_file, exomol_trans_types)
         # Match final state in trans file to stateID in states file
         linelist_df_ = trans_df.merge(states_df, 
-            left_on="stateID_final",
-            right_on="stateID",
+            left_on="state_number_final",
+            right_on="state_number",
             how="inner"
         )
         # Match initial state in trans file to stateID in state file
         linelist_df = linelist_df_.merge(states_df,
-            left_on="stateID_initial",
-            right_on="stateID",
+            left_on="state_number_initial",
+            right_on="state_number",
             suffixes=("_f", "_i"),
             how="inner"
         )
         self.dataframe = linelist_df
+        self.dataframe_persistent = linelist_df
 
 # Create Linelist object and read dataframe from Exomol format
 testLinelist = Linelist()
 testLinelist.exomol_to_linelist(
-    states_file = "testfiles/test.states",
-    trans_file="testfiles/test.trans")
+    states_file = "testfiles/O2XabQM.states",
+    trans_file="testfiles/O2XabQM.trans")
+testLinelist.sort_data(by="energy_f", ascending=False)
+#testLinelist.filter_data("angmom_total", "<", 10)
 
 # Just for testing
 with open("blah.txt", 'w') as f:
     pd.set_option('display.max_columns', 500)
+    pd.set_option('display.max_rows', 99999)
     pd.set_option('display.width', 1000)
     print(testLinelist.dataframe, file=f)

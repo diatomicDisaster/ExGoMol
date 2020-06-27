@@ -1,4 +1,4 @@
-stateID_final stateID_initial einstein_coefficient transition_wavenumber
+state_number_final state_number_initial einstein_coefficient transition_wavenumber
           2            1  1.0953E-18           14.301642
           3            1  1.8508E-09         1549.700930
           4            1  2.9127E-09         1563.844837
