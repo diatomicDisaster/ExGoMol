@@ -46,34 +46,6 @@ def _detect_file_headers(filename, headers_to_detect):
         else:
             return use_these_columns, garbage
     
-def exomol_to_linelist(states_file=None, trans_file=None):
-    """Convert ExoMol states and trans file to Linelist."""
-    exomol_states_types = {
-        "stateID": int, #exomol states files have additional 'stateID' column
-        **Linelist.data_types
-    }
-    exomol_trans_types  = {
-        "stateID_final": int,   #exomol trans files have two 'stateID' columns
-        'stateID_initial': int,
-        **Linelist.data_types
-    }
-    # Read '.states' and '.trans' files as space delimited
-    states_df = _read_space_delimited(states_file, exomol_states_types)
-    trans_df  = _read_space_delimited(trans_file, exomol_trans_types)
-    # Match final state in trans file to stateID in states file
-    linelist_df_ = trans_df.merge(states_df, 
-        left_on="stateID_final",
-        right_on="stateID",
-        how="inner"
-    )
-    # Match initial state in trans file to stateID in state file
-    linelist_df = linelist_df_.merge(states_df,
-        left_on="stateID_initial",
-        right_on="stateID",
-        suffixes=("_f", "_i"),
-        how="inner"
-    )
-    return linelist_df
 
 class Linelist:
     # Linelist dataframe has two of each of these columns: one for the final
@@ -108,9 +80,38 @@ class Linelist:
     def __init__(self):
         self.dataframe = None
 
+    def exomol_to_linelist(self, states_file=None, trans_file=None):
+        """Convert ExoMol states and trans file to Linelist."""
+        exomol_states_types = {
+            "stateID": int, #exomol states files have additional 'stateID' column
+            **self.data_types
+        }
+        exomol_trans_types  = {
+            "stateID_final": int,   #exomol trans files have two 'stateID' columns
+            'stateID_initial': int,
+            **self.data_types
+        }
+        # Read '.states' and '.trans' files as space delimited
+        states_df = _read_space_delimited(states_file, exomol_states_types)
+        trans_df  = _read_space_delimited(trans_file, exomol_trans_types)
+        # Match final state in trans file to stateID in states file
+        linelist_df_ = trans_df.merge(states_df, 
+            left_on="stateID_final",
+            right_on="stateID",
+            how="inner"
+        )
+        # Match initial state in trans file to stateID in state file
+        linelist_df = linelist_df_.merge(states_df,
+            left_on="stateID_initial",
+            right_on="stateID",
+            suffixes=("_f", "_i"),
+            how="inner"
+        )
+        self.dataframe = linelist_df
+
 # Create Linelist object and read dataframe from Exomol format
 testLinelist = Linelist()
-testLinelist.dataframe = exomol_to_linelist(
+testLinelist.exomol_to_linelist(
     states_file = "testfiles/test.states",
     trans_file="testfiles/test.trans")
 
