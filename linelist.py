@@ -1,5 +1,13 @@
 import pandas as pd
 
+def is_iterable(obj):
+    try:
+        iter(obj)
+    except Exception:
+        return False
+    else:
+        return True
+
 def _read_space_delimited(filename, header_dict):
     """Read a space delimited data file with the first row as headers.
         filename : str
@@ -76,36 +84,47 @@ class Linelist:
         "transition_linestrength": float,
         "transition_intensity": float
     }
-    data_types = {**state_data_types, **transition_data_types} #union of dicts
 
     def __init__(self):
-        self.dataframe = None
+        self.dataframe = pd.DataFrame()
 
     def sort_data(self, **kwargs):
         self.dataframe = self.dataframe.sort_values(**kwargs)
 
-    def filter_data(self, column, filter_, value):
-        if type(column) is str:
-            if column[-2:] not in ["_f", "_i"]:
-                self.filter_data(column+"_f", filter_, value)
-                self.filter_data(column+"_i", filter_, value)
-                return
-            if filter_ == "=":
-                self.dataframe = self.dataframe.loc[self.dataframe[column] == value]
-            elif filter_ == ">":
-                self.dataframe = self.dataframe.loc[self.dataframe[column] > value]
-            elif filter_ == ">=":
-                self.dataframe = self.dataframe.loc[self.dataframe[column] >= value]
-            elif filter_ == "<":
-                self.dataframe = self.dataframe.loc[self.dataframe[column] < value]
-            elif filter_ == "<=":
-                self.dataframe = self.dataframe.loc[self.dataframe[column] <= value]
-            elif filter_ == "!=":
-                self.dataframe = self.dataframe.loc[self.dataframe[column] != value]
+    def filter_data(self, filter_condition):
+        # If a list of filters is supplied, recursively call with each filter
+        if any(isinstance(e, list) for e in filter_condition):
+            for filter_condition_ in filter_condition:
+                self.filter_data(filter_condition_)
             return
+        # If filter applied without '_f' or '_i' suffix, apply filter to both states
+        elif any(value in self.state_data_types for value in filter_condition[::2]):
+            self.filter_data([
+                [_+suffix if _ in self.state_data_types else _ for _ in filter_condition] 
+                for suffix in ["_f", "_i"] #apply original filter with each suffix
+            ])
+        # Apply actual filter
         else:
-            for i in range(len(column)):
-                self.filter_data(column[i], filter_[i], value[i])
+            # If either of values is dataframe column, replace string with column values
+            left_value, condition, right_value = [
+                self.dataframe[value] if value in self.dataframe else value for value in filter_condition
+            ]
+            """
+            @todo: Apply filter conditions more concisely
+            @body: Implement filter conditions with a more concise method, rather than a series of elifs
+            """
+            if condition == "=":
+                self.dataframe = self.dataframe.loc[left_value == right_value]
+            elif condition == ">":
+                self.dataframe = self.dataframe.loc[left_value > right_value]
+            elif condition == ">=":
+                self.dataframe = self.dataframe.loc[left_value >= right_value]
+            elif condition == "<":
+                self.dataframe = self.dataframe.loc[left_value < right_value]
+            elif condition == "<=":
+                self.dataframe = self.dataframe.loc[left_value <= right_value]
+            elif condition == "!=":
+                self.dataframe = self.dataframe.loc[left_value != right_value]
             return
 
     def reset_data(self):
@@ -113,11 +132,11 @@ class Linelist:
 
     def exomol_to_linelist(self, states_file=None, trans_file=None):
         """Convert ExoMol states and trans file to Linelist."""
-        exomol_states_types = self.data_types
+        exomol_states_types = self.state_data_types
         exomol_trans_types  = {
             "state_number_final": int,   #exomol trans files have two 'stateID' columns
             'state_number_initial': int,
-            **self.data_types
+            **self.transition_data_types
         }
         # Read '.states' and '.trans' files as space delimited
         states_df = _read_space_delimited(states_file, exomol_states_types)
@@ -138,17 +157,21 @@ class Linelist:
         self.dataframe = linelist_df
         self.dataframe_persistent = linelist_df
 
+
+
 # Create Linelist object and read dataframe from Exomol format
 testLinelist = Linelist()
 testLinelist.exomol_to_linelist(
     states_file = "testfiles/O2XabQM.states",
     trans_file="testfiles/O2XabQM.trans")
 testLinelist.sort_data(by="energy_f", ascending=False)
-#testLinelist.filter_data("angmom_total", "<", 10)
+testLinelist.filter_data([
+    ["angmom_total", "=", 2]
+])
 
 # Just for testing
 with open("blah.txt", 'w') as f:
     pd.set_option('display.max_columns', 500)
-    pd.set_option('display.max_rows', 99999)
+    pd.set_option('display.max_rows', 1000)
     pd.set_option('display.width', 1000)
     print(testLinelist.dataframe, file=f)
