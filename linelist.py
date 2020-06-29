@@ -131,7 +131,7 @@ class Linelist:
                 condition is a Python comparator.
         """
         """
-        @todo: Is this the cleanest method for implementing filters?
+        @help wanted: Is this the cleanest method for implementing filters?
         @body: Applying sequential filters may be time consuming, and it is 
         already possible to apply multiple filters with Pandas, however this 
         obfuscates syntax for the user.
