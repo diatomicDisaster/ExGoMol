@@ -158,6 +158,8 @@ class Linelist:
             return
 
     def y_as_fx(self, x=None, y=None):
+        """Return data series x and y from the dataframe as a (n, 2) ndarray,
+        sorted by increasing x value."""
         xy = self.dataframe[[x, y]].to_numpy()
         return xy[xy[:,0].argsort()]
 
