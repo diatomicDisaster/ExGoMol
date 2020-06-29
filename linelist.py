@@ -132,7 +132,9 @@ class Linelist:
         """
         """
         @todo: Is this the cleanest method for implementing filters?
-        @body: Applying sequential filters may be time consuming, and it is already possible to apply multiple filters with Pandas, however this obfuscates syntax for the user.
+        @body: Applying sequential filters may be time consuming, and it is 
+        already possible to apply multiple filters with Pandas, however this 
+        obfuscates syntax for the user.
         """
         # If a list of filters is supplied, recursively call with each filter
         if any(isinstance(elem, list) for elem in filter_condition):
