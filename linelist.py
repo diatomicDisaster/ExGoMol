@@ -92,6 +92,10 @@ class Linelist:
         self.dataframe = self.dataframe.sort_values(**kwargs)
 
     def filter_data(self, filter_condition):
+        """
+        @todo: Method for comparing linelists
+        @body: Implement class method for comparing to another linelist
+        """
         # If a list of filters is supplied, recursively call with each filter
         if any(isinstance(e, list) for e in filter_condition):
             for filter_condition_ in filter_condition:
