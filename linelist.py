@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy  as np
 
 def is_iterable(obj, strings=False):
     """Check if object is iterable, return boolean result.
@@ -120,7 +121,10 @@ class Linelist:
                 If ascending is True then sort on column in ascending order,
                 otherwise sort in descending order.
         """
-        self.dataframe = self.dataframe.sort_values(**kwargs)
+        if not kwargs:
+            self.dataframe = self.dataframe.sort_index(axis=0)
+        else:
+            self.dataframe = self.dataframe.sort_values(**kwargs)
 
     def filter_data(self, filter_condition):
         """Filter linelist data according to some condition or series of conditions.
@@ -152,6 +156,10 @@ class Linelist:
             left_value, condition, right_value = [str(i) for i in filter_condition]
             self.dataframe = self.dataframe.query(left_value+condition+right_value)
             return
+
+    def y_as_fx(self, x=None, y=None):
+        xy = self.dataframe[[x, y]].to_numpy()
+        return xy[xy[:,0].argsort()]
 
     def exomol_to_linelist(self, states_file=None, trans_file=None):
         """Convert ExoMol states and trans file to Linelist."""
@@ -188,10 +196,10 @@ testLinelist.exomol_to_linelist(
     states_file = "testfiles/O2XabQM.states",
     trans_file="testfiles/O2XabQM.trans")
 testLinelist.sort_data(by="energy_f", ascending=False)
-testLinelist.filter_data([
-    ["angmom_total_i", "==", "angmom_total_f"]
-])
-
+#testLinelist.filter_data([
+#    ["angmom_total_i", "==", "angmom_total_f"]
+#])
+xy = testLinelist.y_as_fx(x="angmom_total_f", y="transition_wavenumber")
 # Just for testing
 with open("blah.txt", 'w') as f:
     pd.set_option('display.max_columns', 500)
