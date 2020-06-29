@@ -1,15 +1,26 @@
 import pandas as pd
 
-def is_iterable(obj):
+def is_iterable(object, strings=False):
+    """Check if object is iterable, return boolean result.
+    arguments
+        obj : object
+            Any Python object.
+        strings : bool
+            If false, strings don't count as iterables.
+    """
     try:
         iter(obj)
     except Exception:
         return False
     else:
-        return True
+        if type(obj) is str:
+            return False
+        else:
+            return True
 
 def _read_space_delimited(filename, header_dict):
     """Read a space delimited data file with the first row as headers.
+    arguments
         filename : str
             Name of file to read.
         header_dict : dict
@@ -29,7 +40,8 @@ def _read_space_delimited(filename, header_dict):
     return df
 
 def _detect_file_headers(filename, headers_to_detect):
-    """Detect the headers in a file.
+    """Detect the headers in the first line of a file from a given list.
+    arguments
         filename : str
             Name of file to sample first line from.
         heads_to_detect : list-like of strings 
@@ -56,6 +68,12 @@ def _detect_file_headers(filename, headers_to_detect):
     
 
 class Linelist:
+    """The Linelist object stores information about a linelist dataset in the
+    native format. It also contains methods for filtering and sorting the data,
+    as well as methods for reading linelists from files and for comparing two
+    linelists.
+    """
+
     # Linelist dataframe has two of each of these columns: one for the final
     # state (suffix "_f") and another for the initial state (suffix "_i")
     state_data_types = {
@@ -88,10 +106,29 @@ class Linelist:
     def __init__(self):
         self.dataframe = pd.DataFrame()
 
+    def reset_data(self):
+        self.dataframe = self.dataframe_persistent
+
     def sort_data(self, **kwargs):
+        """Sort linelist using native Pandas sort_values(). Important keyword
+        arguments are:
+            by : string or list of strings
+                The column name to sort data on.
+            ascending : bool or list of bools
+                If ascending is True then sort on column in ascending order,
+                otherwise sort in descending order.
+        """
         self.dataframe = self.dataframe.sort_values(**kwargs)
 
     def filter_data(self, filter_condition):
+        """Filter linelist data according to some condition or series of conditions.
+        arguments
+            filter_condition : list or list of lists
+                The filter to apply in the form [left, condition, right], where
+                at least one (`left`, `right`) is a linelist data series, and 
+                `condition` is a string comparison '<', '<=', etc. If a list of
+                filters is provided, `filter_data()` is recursively called.
+        """
         """
         @todo: Method for comparing linelists
         @body: Implement class method for comparing to another linelist
@@ -109,30 +146,9 @@ class Linelist:
             ])
         # Apply actual filter
         else:
-            # If either of values is dataframe column, replace string with column values
-            left_value, condition, right_value = [
-                self.dataframe[value] if value in self.dataframe else value for value in filter_condition
-            ]
-            """
-            @todo: Apply filter conditions more concisely
-            @body: Implement filter conditions with a more concise method, rather than a series of elifs
-            """
-            if condition == "=":
-                self.dataframe = self.dataframe.loc[left_value == right_value]
-            elif condition == ">":
-                self.dataframe = self.dataframe.loc[left_value > right_value]
-            elif condition == ">=":
-                self.dataframe = self.dataframe.loc[left_value >= right_value]
-            elif condition == "<":
-                self.dataframe = self.dataframe.loc[left_value < right_value]
-            elif condition == "<=":
-                self.dataframe = self.dataframe.loc[left_value <= right_value]
-            elif condition == "!=":
-                self.dataframe = self.dataframe.loc[left_value != right_value]
+            left_value, condition, right_value = [str(i) for i in filter_condition]
+            self.dataframe = self.dataframe.query(left_value+condition+right_value)
             return
-
-    def reset_data(self):
-        self.dataframe = self.dataframe_persistent
 
     def exomol_to_linelist(self, states_file=None, trans_file=None):
         """Convert ExoMol states and trans file to Linelist."""
@@ -170,7 +186,7 @@ testLinelist.exomol_to_linelist(
     trans_file="testfiles/O2XabQM.trans")
 testLinelist.sort_data(by="energy_f", ascending=False)
 testLinelist.filter_data([
-    ["angmom_total", "=", 2]
+    ["angmom_total_i", "==", "angmom_total_f"]
 ])
 
 # Just for testing
