@@ -66,14 +66,16 @@ def _detect_file_headers(filename, headers_to_detect):
         else:
             return use_these_columns, garbage
     
-
+"""
+@todo: Method for comparing linelists
+@body: Implement class method for comparing to another linelist
+"""
 class Linelist:
     """The Linelist object stores information about a linelist dataset in the
     native format. It also contains methods for filtering and sorting the data,
     as well as methods for reading linelists from files and for comparing two
     linelists.
     """
-
     # Linelist dataframe has two of each of these columns: one for the final
     # state (suffix "_f") and another for the initial state (suffix "_i")
     state_data_types = {
@@ -124,17 +126,16 @@ class Linelist:
         """Filter linelist data according to some condition or series of conditions.
         arguments
             filter_condition : list or list of lists
-                The filter to apply in the form [left, condition, right], where
-                at least one (`left`, `right`) is a linelist data series, and 
-                `condition` is a string comparison '<', '<=', etc. If a list of
-                filters is provided, `filter_data()` is recursively called.
+                The filter(s) to apply in the form [left, condition, right] where 
+                either one or both of left/right are linelist data series and
+                condition is a Python comparator.
         """
         """
-        @todo: Method for comparing linelists
-        @body: Implement class method for comparing to another linelist
+        @todo: Is this the cleanest method for implementing filters?
+        @body: Applying sequential filters may be time consuming, and it is already possible to apply multiple filters with Pandas, however this obfuscates syntax for the user.
         """
         # If a list of filters is supplied, recursively call with each filter
-        if any(isinstance(e, list) for e in filter_condition):
+        if any(isinstance(elem, list) for elem in filter_condition):
             for filter_condition_ in filter_condition:
                 self.filter_data(filter_condition_)
             return
