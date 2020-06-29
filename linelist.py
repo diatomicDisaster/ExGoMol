@@ -1,6 +1,6 @@
 import pandas as pd
 
-def is_iterable(object, strings=False):
+def is_iterable(obj, strings=False):
     """Check if object is iterable, return boolean result.
     arguments
         obj : object
