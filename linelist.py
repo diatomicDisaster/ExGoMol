@@ -1,5 +1,7 @@
+import timeit
 import pandas as pd
 import numpy  as np
+import matplotlib.pyplot as plt
 
 def is_iterable(obj, strings=False):
     """Check if object is iterable, return boolean result.
@@ -19,6 +21,16 @@ def is_iterable(obj, strings=False):
         else:
             return True
 
+def print_df(df, fname="blah.txt", cols=None):
+    pd.set_option('display.max_columns', 500)
+    pd.set_option('display.max_rows', 1000)
+    pd.set_option('display.width', 1000)
+    with open(fname, 'a') as f:
+        if cols:
+            print(df[cols], file=f)
+        else:
+            print(df, file=f)
+
 def _read_space_delimited(filename, header_dict):
     """Read a space delimited data file with the first row as headers.
     arguments
@@ -34,10 +46,12 @@ def _read_space_delimited(filename, header_dict):
     use_columns, _ = _detect_file_headers(filename, headers) #list of known headers
     df = pd.read_csv(filename,
         delim_whitespace=True,
+        index_col=False,
         header=0, #0-th row as headers
         skip_blank_lines=True,
-        usecols=[column[1] for column in use_columns],
-        dtype={column[0] : header_dict[column[0]] for column in use_columns})
+        usecols=[column[1] for column in use_columns]#,
+        #dtype={column[0] : header_dict[column[0]] for column in use_columns}
+    )
     return df
 
 def _detect_file_headers(filename, headers_to_detect):
@@ -108,6 +122,12 @@ class Linelist:
 
     def __init__(self):
         self.dataframe = pd.DataFrame()
+        self._compared_to = [[],[]]
+        self.file_column_types = {
+            **{key+"_f": self.state_data_types[key] for key in self.state_data_types},
+            **{key+"_i": self.state_data_types[key] for key in self.state_data_types},
+            **self.transition_data_types
+        }
 
     def reset_data(self):
         self.dataframe = self.dataframe_persistent
@@ -163,13 +183,58 @@ class Linelist:
         xy = self.dataframe[[x, y]].to_numpy()
         return xy[xy[:,0].argsort()]
 
+    """
+    @todo: Un-hardcode merge_on list.
+    """
+    def _compare_to(self, other_linelist, 
+        merge_on=[
+            "angmom_total_f", "angmom_total_i", 
+            "vibrational_f", "vibrational_i"
+        ]):
+        """Internal method for retrieving comparisons to other linelists"""
+        merge_linelist = self.dataframe.merge(other_linelist.dataframe,
+            how='inner',
+            on=merge_on,
+            suffixes=("_L", "_R")
+        )
+        return merge_linelist
+    
+    def diff(self, linelist, column_name, func_x=None):
+        """Return difference in column values between this self (left) and 
+        another (right) Linelist object.
+        arguments
+            linelist : Linelist (object)
+                The right-hand linelist to compare to.
+            column_name : str
+                Column name for difference between left- and right-hand linelists.
+            func_x (optional) : str
+                The column to sort differences on, (i.e return differences as
+                function of). The default is column_name from the left-hand
+                linelist.
+        returns
+            xy : ndarray
+                A numpy (n, 2) array containing func_x values and the
+                corresponding difference.
+        """
+        merge_linelist = self._compare_to(linelist)
+        if 'diff_'+column_name not in merge_linelist:
+            merge_linelist['diff_'+column_name] \
+                    = merge_linelist[column_name+'_R'] \
+                    - merge_linelist[column_name+'_L']
+        func_x = column_name+'_L' if not func_x else func_x
+        xy = merge_linelist[[func_x, 'diff_'+column_name]].to_numpy()
+        return xy[xy[:,0].argsort()]
+
     def exomol_to_linelist(self, states_file=None, trans_file=None):
         """Convert ExoMol states and trans file to Linelist."""
         exomol_states_types = self.state_data_types
+        """
+        @todo Convert to merge operator '|' at python 3.9
+        """
         exomol_trans_types  = {
+            **self.transition_data_types,
             "state_number_final": int,   #exomol trans files have two 'stateID' columns
-            'state_number_initial': int,
-            **self.transition_data_types
+            "state_number_initial": int
         }
         # Read '.states' and '.trans' files as space delimited
         states_df = _read_space_delimited(states_file, exomol_states_types)
@@ -190,21 +255,38 @@ class Linelist:
         self.dataframe = linelist_df
         self.dataframe_persistent = linelist_df
 
-
+    def file_to_linelist(self, linelist_file):
+        df = _read_space_delimited(linelist_file, self.file_column_types)
+        self.dataframe = df
 
 # Create Linelist object and read dataframe from Exomol format
+setup1 = """
+from __main__ import Linelist
+"""
+
+stmt1 = """
 testLinelist = Linelist()
 testLinelist.exomol_to_linelist(
     states_file = "testfiles/O2XabQM.states",
     trans_file="testfiles/O2XabQM.trans")
-testLinelist.sort_data(by="energy_f", ascending=False)
-#testLinelist.filter_data([
-#    ["angmom_total_i", "==", "angmom_total_f"]
-#])
-xy = testLinelist.y_as_fx(x="angmom_total_f", y="transition_wavenumber")
-# Just for testing
-with open("blah.txt", 'w') as f:
-    pd.set_option('display.max_columns', 500)
-    pd.set_option('display.max_rows', 1000)
-    pd.set_option('display.width', 1000)
-    print(testLinelist.dataframe, file=f)
+"""
+
+setup2 = """
+from __main__ import Linelist
+testLinelist = Linelist()
+testLinelist.exomol_to_linelist(
+    states_file = "testfiles/H2XQM.states",
+    trans_file="testfiles/H2XQM.trans")
+compareLinelist = Linelist()
+compareLinelist.file_to_linelist("testfiles/Komasa.txt")
+"""
+
+stmt2 = """
+xy = testLinelist.diff(compareLinelist, "einstein_coefficient", func_x="energy_f_L")
+"""
+print(timeit.timeit(setup=setup1, stmt=stmt1, number=10))
+print(timeit.timeit(setup=setup2, stmt=stmt2, number=10))
+
+#xy = testLinelist.diff(compareLinelist, "einstein_coefficient", func_x="energy_f_L")
+#plt.plot(xy[:,0], xy[:,1], ls='none', marker='.')
+#plt.show()
