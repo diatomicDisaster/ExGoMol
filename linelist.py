@@ -1,7 +1,5 @@
-import timeit
 import pandas as pd
 import numpy  as np
-import matplotlib.pyplot as plt
 
 def is_iterable(obj, strings=False):
     """Check if object is iterable, return boolean result.
@@ -49,8 +47,8 @@ def _read_space_delimited(filename, header_dict):
         index_col=False,
         header=0, #0-th row as headers
         skip_blank_lines=True,
-        usecols=[column[1] for column in use_columns]#,
-        #dtype={column[0] : header_dict[column[0]] for column in use_columns}
+        usecols=[column[1] for column in use_columns],
+        dtype={column[0] : header_dict[column[0]] for column in use_columns}
     )
     return df
 
@@ -184,7 +182,7 @@ class Linelist:
         return xy[xy[:,0].argsort()]
 
     """
-    @todo: Un-hardcode merge_on list.
+    @todo: Un-hardcode merge_on list and store merged dataframes
     """
     def _compare_to(self, other_linelist, 
         merge_on=[
@@ -217,12 +215,21 @@ class Linelist:
                 corresponding difference.
         """
         merge_linelist = self._compare_to(linelist)
-        if 'diff_'+column_name not in merge_linelist:
-            merge_linelist['diff_'+column_name] \
-                    = merge_linelist[column_name+'_R'] \
-                    - merge_linelist[column_name+'_L']
+        merge_linelist['diff_'+column_name] \
+            = merge_linelist[column_name+'_R'] \
+            - merge_linelist[column_name+'_L']
         func_x = column_name+'_L' if not func_x else func_x
         xy = merge_linelist[[func_x, 'diff_'+column_name]].to_numpy()
+        return xy[xy[:,0].argsort()]
+
+    def ratio(self, linelist, column_name, func_x=None):
+        merge_linelist = self._compare_to(linelist)
+        if 'ratio_'+column_name not in merge_linelist:
+            merge_linelist['ratio_'+column_name] \
+                = merge_linelist[column_name+'_L'] \
+                / merge_linelist[column_name+'_R']
+        func_x = column_name+'_L' if not func_x else func_x
+        xy = merge_linelist[[func_x, 'ratio_'+column_name]].to_numpy()
         return xy[xy[:,0].argsort()]
 
     def exomol_to_linelist(self, states_file=None, trans_file=None):
@@ -258,35 +265,3 @@ class Linelist:
     def file_to_linelist(self, linelist_file):
         df = _read_space_delimited(linelist_file, self.file_column_types)
         self.dataframe = df
-
-# Create Linelist object and read dataframe from Exomol format
-setup1 = """
-from __main__ import Linelist
-"""
-
-stmt1 = """
-testLinelist = Linelist()
-testLinelist.exomol_to_linelist(
-    states_file = "testfiles/O2XabQM.states",
-    trans_file="testfiles/O2XabQM.trans")
-"""
-
-setup2 = """
-from __main__ import Linelist
-testLinelist = Linelist()
-testLinelist.exomol_to_linelist(
-    states_file = "testfiles/H2XQM.states",
-    trans_file="testfiles/H2XQM.trans")
-compareLinelist = Linelist()
-compareLinelist.file_to_linelist("testfiles/Komasa.txt")
-"""
-
-stmt2 = """
-xy = testLinelist.diff(compareLinelist, "einstein_coefficient", func_x="energy_f_L")
-"""
-print(timeit.timeit(setup=setup1, stmt=stmt1, number=10))
-print(timeit.timeit(setup=setup2, stmt=stmt2, number=10))
-
-#xy = testLinelist.diff(compareLinelist, "einstein_coefficient", func_x="energy_f_L")
-#plt.plot(xy[:,0], xy[:,1], ls='none', marker='.')
-#plt.show()
