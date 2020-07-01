@@ -1,5 +1,5 @@
-from linelist import Linelist, MergedLinelist, exomol_to_linelist, file_to_linelist
-from data import y_as_fx, compare_dataframes
+from ExGoMol.linelist import Linelist, MergedLinelist, exomol_to_linelist, file_to_linelist
+from ExGoMol.data import y_as_fx, compare_dataframes
 import matplotlib.pyplot as plt
 import numpy as np
 import timeit

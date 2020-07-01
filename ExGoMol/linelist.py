@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy  as np
-from data import read_space_delimited
+from ExGoMol.data import read_space_delimited
 
 """
 @todo: Method for comparing linelists
