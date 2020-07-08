@@ -12,3 +12,5 @@
 #Exocross
 *.inp
 *.xsec
+/mikes_mess/*.states
+/mikes_mess/*.trans
