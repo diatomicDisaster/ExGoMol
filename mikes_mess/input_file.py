@@ -1,4 +1,4 @@
-from mikes_mess.input_file_fucntion import file_section, filter_section, spectra_section, range_grid, technical_specs
+from mikes_mess.input_file_function import file_section, filter_section, spectra_section, range_grid, technical_specs
 
 
 def createInputFile(name):
