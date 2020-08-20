@@ -14,7 +14,8 @@ def y_as_fx(dataframe, x=None, y=None):
 def compare_dataframes(left_df, right_df, 
     merge_on=[
         "angmom_total_f", "angmom_total_i", 
-        "vibrational_f", "vibrational_i"
+        "vibrational_f", "vibrational_i",
+        "electronic_state_f", "electronic_state_i"
     ]):
     """Internal method for retrieving comparisons to other linelists"""
     return left_df.merge(right_df,
@@ -23,30 +24,7 @@ def compare_dataframes(left_df, right_df,
         suffixes=("_L", "_R")
     )
 
-def read_space_delimited(filename, header_dict):
-    """Read a space delimited data file with the first row as headers.
-    arguments
-        filename : str
-            Name of file to read.
-        header_dict : dict
-            Dictionary of file headers and data types.
-    returns
-        df : pandas.DataFrame
-            Dataframe of the file's contents
-    """
-    headers = [_ for _ in header_dict] #list of header strings
-    use_columns, _ = _detect_file_headers(filename, headers) #list of known headers
-    df = pd.read_csv(filename,
-        delim_whitespace=True,
-        index_col=False,
-        header=0, #0-th row as headers
-        skip_blank_lines=True,
-        usecols=[column[1] for column in use_columns],
-        dtype={column[0] : header_dict[column[0]] for column in use_columns}
-    )
-    return df
-
-def _detect_file_headers(filename, headers_to_detect):
+def detect_file_headers(filename, headers_to_detect):
     """Detect the headers in the first line of a file from a given list.
     arguments
         filename : str
@@ -90,3 +68,39 @@ def is_iterable(obj, strings=False):
             return False
         else:
             return True
+
+def print_linelist(linelist, fname="blah.txt", cols=None):
+    df = linelist.dataframe
+    pd.set_option('display.max_columns', 500)
+    pd.set_option('display.max_rows', 50)
+    pd.set_option('display.width', 1000)
+    with open(fname, 'a') as f:
+        if cols:
+            print(df[cols], file=f)
+        else:
+            print(df, file=f)
+
+branch_dict = {
+    "O" : -2,
+    "P" : -1,
+    "Q" : 0,
+    "R" : 1,
+    "S" : 2
+}
+
+def convert_from_branch(quanta_initial, branch):
+    """Calculate final state quanta from initial state quanta and branch label.
+    arguments
+        quanta_initial : float, int
+            The quantum number of the initial state.
+        branch :  str
+            The transition branch ['O, 'P', 'Q', 'R', 'S'].
+    returns
+        quanta_final : float, int
+            The quantum number of the final state.
+    """ 
+    if branch in branch_dict:
+        quanta_final = quanta_initial + branch_dict[branch]
+    else:
+        quanta_final = None
+    return quanta_final

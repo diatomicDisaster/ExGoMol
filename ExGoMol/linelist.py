@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy  as np
-from ExGoMol.data import read_space_delimited
+from ExGoMol.data import detect_file_headers, convert_from_branch
+
 
 """
 @todo: Method for comparing linelists
@@ -88,7 +89,10 @@ class LinelistObject:
         # Apply actual filter
         else:
             left_value, condition, right_value = [str(i) for i in filter_condition]
-            self.dataframe = self.dataframe.query(left_value+condition+right_value)
+            if (right_value not in self.dataframe.columns) and type(right_value) is str:
+                self.dataframe = self.dataframe[self.dataframe[left_value]==right_value]
+            else:
+                self.dataframe = self.dataframe.query(left_value+condition+right_value)
             return
 
     def _argument_reader(self, *args):
@@ -230,7 +234,15 @@ class MergedLinelist(LinelistObject):
     transition_suffixes = ['_L', '_R'] #possible suffixes for transition data
 
 def exomol_to_linelist(states_file=None, trans_file=None):
-    """Convert ExoMol states and trans file to Linelist."""
+    """Convert ExoMol states and trans file to Linelist object.
+    arguments
+        states_file : str
+            Path to Exomol '.states' file.
+        trans_file : str
+            Path to Exomol '.trans' file.
+    returns
+        Linelist
+            A Linelist object."""
     exomol_states_types = Linelist.state_data_types
     """
     @todo Convert to merge operator '|' at python 3.9
@@ -240,9 +252,24 @@ def exomol_to_linelist(states_file=None, trans_file=None):
         "state_number_final": int,   #exomol trans files have two 'stateID' columns
         "state_number_initial": int
     }
-    # Read '.states' and '.trans' files as space delimited
-    states_df = read_space_delimited(states_file, exomol_states_types)
-    trans_df  = read_space_delimited(trans_file, exomol_trans_types)
+    states_columns, _ = detect_file_headers(states_file, [_ for _ in exomol_states_types])
+    trans_columns, _ = detect_file_headers(trans_file, [_ for _ in exomol_trans_types])
+    states_df = pd.read_csv(states_file,
+        delim_whitespace=True,
+        index_col=False,
+        header=0, #0-th row as headers
+        skip_blank_lines=True,
+        usecols=[column[1] for column in states_columns],
+        dtype={column[0] : exomol_states_types[column[0]] for column in states_columns}
+    )
+    trans_df = pd.read_csv(trans_file,
+        delim_whitespace=True,
+        index_col=False,
+        header=0, #0-th row as headers
+        skip_blank_lines=True,
+        usecols=[column[1] for column in trans_columns],
+        dtype={column[0] : exomol_trans_types[column[0]] for column in trans_columns}
+    )
     # Match final state in trans file to stateID in states file
     linelist_df_ = trans_df.merge(states_df, 
         left_on="state_number_final",
@@ -259,12 +286,148 @@ def exomol_to_linelist(states_file=None, trans_file=None):
     return Linelist(linelist_df)
 
 def file_to_linelist(linelist_file):
-    """Convert space delimited file with first row as headers to Linelist"""
+    """Convert space delimited file to Linelist object.
+
+    Converts a space delimited file with the first row as column headers to a
+    Linelist object. The column headers should coincide with the ``Linelist``
+    attribute ``state_data_types``.
+    arguments
+        linelist_file : str
+            Path to the space delimited file.
+    returns
+        Linelist : obj
+            A ``Linelist`` object.
+    """
     file_column_types = {
         **{key+"_f": Linelist.state_data_types[key] for key in Linelist.state_data_types},
         **{key+"_i": Linelist.state_data_types[key] for key in Linelist.state_data_types},
         **Linelist.transition_data_types
     }
-    linelist_df = read_space_delimited(linelist_file, file_column_types)
+    use_columns, _ = detect_file_headers(linelist_file, [_ for _ in file_column_types])
+    linelist_df = pd.read_csv(linelist_file,
+        delim_whitespace=True,
+        index_col=False,
+        header=0, #0-th row as headers
+        skip_blank_lines=True,
+        usecols=[column[1] for column in use_columns],
+        dtype={column[0] : file_column_types[column[0]] for column in use_columns}
+    )
+    
     return Linelist(linelist_df)
 
+def hitran_to_linelist(linelist_file):
+    """Convert Hitran 2004, 160 character '.par' linelist file to Linelist object.
+    arguments
+        linelist_file : str
+            Path to the Hitran '.par' file.
+    returns
+        Linelist : obj
+            A ``Linelist`` object.
+    """
+    # Field and data type for Hitran 2004, 160 character '.par' format
+    header_dict = {
+        "molecule_number": int,
+        "isotope_number": int,
+        "transition_wavenumber": float,
+        "transition_intensity": float,
+        "einstein_coefficient": float,
+        "air-broadened_width": float,
+        "self-broadened_width": float,
+        "energy_i": float,
+        "temperature_dependence": float,
+        "pressure_shift": float,  
+        "upper_state_global": str,
+        "lower_state_global": str,
+        "upper_state_local": str,
+        "lower_state_local": str,
+        "error_code": str,
+        "reference_code": str,
+        "line_mixing": str,
+        "upper_degeneracy": float,
+        "lower_degeneracy": float
+    }
+    linelist_df = pd.read_fwf(linelist_file,
+        widths=[2,1,12,10,10,5,5,10,4,8,15,15,15,15,6,12,1,7,7], #Hitran 2004 '.par'
+        header=None,
+        names=[_ for _ in header_dict],
+        dtype=header_dict
+    )
+    extract_hitran_global_quanta(linelist_df, 2) #global state quanta from format class 2
+    extract_hitran_local_quanta(linelist_df, 5)  #local state quanta from class 5
+    linelist_df["energy_f"] = linelist_df["energy_i"] + linelist_df["transition_wavenumber"]
+    linelist_df = linelist_df.drop(columns=[
+        "molecule_number",
+        "isotope_number",
+        "air-broadened_width",
+        "self-broadened_width",
+        "temperature_dependence",
+        "pressure_shift",
+        "upper_state_global",
+        "lower_state_global",
+        "upper_state_local",
+        "lower_state_local",
+        "error_code",
+        "reference_code",
+        "line_mixing",
+        "branch_electronic",
+        "branch_total"
+    ])
+    return Linelist(linelist_df)
+
+def extract_hitran_global_quanta(hitran_dataframe, molecule_class):
+    """Extract the individual quantum numbers from the Hitran global quanta fields."""
+    if molecule_class == 2:
+        hitran_dataframe["upper_state_global"] = hitran_dataframe["upper_state_global"].apply(
+            lambda joined : [joined.split()[0], float(joined.split()[1])]
+        )
+        hitran_dataframe["lower_state_global"] = hitran_dataframe["lower_state_global"].apply(
+            lambda joined : [joined.split()[0], float(joined.split()[1])]
+        )
+        hitran_dataframe[["electronic_state_f", "vibrational_f"]] = pd.DataFrame(
+            hitran_dataframe.upper_state_global.tolist(), index=hitran_dataframe.index) 
+        hitran_dataframe[["electronic_state_i", "vibrational_i"]] = pd.DataFrame(
+            hitran_dataframe.lower_state_global.tolist(), index=hitran_dataframe.index) 
+        print("Molecule class 2")
+    else:
+        raise ValueError("Only Hitran molecule class 2 is currently implemented for interpreting global quanta.")
+
+def extract_hitran_local_quanta(hitran_dataframe, molecule_class):
+    """Extract the individual quantum numbers from the Hitran local quanta fields."""
+    if molecule_class == 5:
+        # Split lower state local quanta string to list
+        hitran_dataframe["lower_state_local"] = hitran_dataframe["lower_state_local"].apply(
+            lambda joined : [       #Extract Hitran class 5 format
+                joined[0],          #N branch
+                float(joined[1:4]), #N number  
+                joined[4],          #J branch
+                float(joined[5:8]), #J number
+                joined[-1]          #Transition moment
+            ]
+        )
+        # Make local quanta list into dataframe columns
+        hitran_dataframe[[
+            "branch_total",    #N branch
+            "angmom_total_i",  #N numbers
+            "branch_electronic",         #J branch
+            "angmom_electronic_i",       #J number
+            "transition_moment_key" #Transition moment
+        ]] = pd.DataFrame(
+            hitran_dataframe.lower_state_local.tolist(), 
+            index=hitran_dataframe.index
+        )
+
+        # Calculate upper state local quanta from branch info
+        # N quantum number
+        hitran_dataframe["angmom_electronic_f"] = [
+            convert_from_branch(
+                hitran_dataframe.loc[idx, "angmom_electronic_i"],
+                hitran_dataframe.loc[idx, "branch_electronic"]
+            ) for idx in range(len(hitran_dataframe))
+        ]
+        # J quantum number
+        hitran_dataframe["angmom_total_f"] = [
+            convert_from_branch(
+                hitran_dataframe.loc[idx, "angmom_total_i"],
+                hitran_dataframe.loc[idx, "branch_total"]
+            ) for idx in range(len(hitran_dataframe))
+        ]
