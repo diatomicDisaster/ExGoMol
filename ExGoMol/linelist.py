@@ -89,10 +89,10 @@ class LinelistObject:
         # Apply actual filter
         else:
             left_value, condition, right_value = [str(i) for i in filter_condition]
-            if (right_value not in self.dataframe.columns) and type(right_value) is str:
-                self.dataframe = self.dataframe[self.dataframe[left_value]==right_value]
-            else:
-                self.dataframe = self.dataframe.query(left_value+condition+right_value)
+            #if (right_value not in self.dataframe.columns) and type(right_value) is str:
+            #    self.dataframe = self.dataframe[self.dataframe[left_value]==right_value]
+            #else:
+            self.dataframe = self.dataframe.query(left_value+condition+right_value)
             return
 
     def _argument_reader(self, *args):
@@ -386,8 +386,7 @@ def extract_hitran_global_quanta(hitran_dataframe, molecule_class):
         hitran_dataframe[["electronic_state_f", "vibrational_f"]] = pd.DataFrame(
             hitran_dataframe.upper_state_global.tolist(), index=hitran_dataframe.index) 
         hitran_dataframe[["electronic_state_i", "vibrational_i"]] = pd.DataFrame(
-            hitran_dataframe.lower_state_global.tolist(), index=hitran_dataframe.index) 
-        print("Molecule class 2")
+            hitran_dataframe.lower_state_global.tolist(), index=hitran_dataframe.index)
     else:
         raise ValueError("Only Hitran molecule class 2 is currently implemented for interpreting global quanta.")
 
@@ -406,10 +405,10 @@ def extract_hitran_local_quanta(hitran_dataframe, molecule_class):
         )
         # Make local quanta list into dataframe columns
         hitran_dataframe[[
-            "branch_total",    #N branch
-            "angmom_total_i",  #N numbers
             "branch_electronic",         #J branch
             "angmom_electronic_i",       #J number
+            "branch_total",    #N branch
+            "angmom_total_i",  #N numbers
             "transition_moment_key" #Transition moment
         ]] = pd.DataFrame(
             hitran_dataframe.lower_state_local.tolist(), 

@@ -69,12 +69,12 @@ def is_iterable(obj, strings=False):
         else:
             return True
 
-def print_linelist(linelist, fname="blah.txt", cols=None):
+def print_linelist(linelist, fname="blah.txt", cols=None, num_rows=50):
     df = linelist.dataframe
-    pd.set_option('display.max_columns', 500)
-    pd.set_option('display.max_rows', 50)
+    pd.set_option('display.max_columns', len(df.columns))
+    pd.set_option('display.max_rows', num_rows)
     pd.set_option('display.width', 1000)
-    with open(fname, 'a') as f:
+    with open(fname, 'w') as f: 
         if cols:
             print(df[cols], file=f)
         else:
